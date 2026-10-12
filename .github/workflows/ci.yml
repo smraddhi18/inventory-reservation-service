@@ -1,0 +1,37 @@
+name: quality
+
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: inventory_test
+          POSTGRES_USER: inventory
+          POSTGRES_PASSWORD: inventory_ci_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U inventory -d inventory_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret
+      DB_ENGINE: postgres
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_NAME: inventory_test
+      DB_USER: inventory
+      DB_PASSWORD: inventory_ci_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py test inventory --verbosity 2
